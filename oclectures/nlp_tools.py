@@ -33,6 +33,47 @@ def _shorten(name):
     return name
 
 
+_GREEK = {'theta': r'\theta', 'alpha': r'\alpha', 'gam': r'\gamma', 'gamma': r'\gamma',
+          'phi': r'\phi', 'psi': r'\psi', 'vx': 'v_x', 'vy': 'v_y', 'mach': 'M'}
+
+
+def _sym(name):
+    return _GREEK.get(name, name)
+
+
+def _symbol(name):
+    """One block name from ``total_jacobian`` -> math-symbol label."""
+    rules = [
+        (r'^(?:\w+?\d*\.)?t$', lambda m: '$t_f$'),                                # objective: final time
+        (r'^t_duration$', lambda m: '$t_f$'),
+        (r'^\w+?(\d+)\.t_duration$', lambda m: f'$h_{{{m[1]}}}$'),                 # arc duration
+        (r'^\w+?(\d+)\.t_initial$', lambda m: f'$t_{{{m[1]}}}$'),                  # arc start time
+        (r'^\w+?(\d+)\.initial_(\w+)$', lambda m: f'$s_{{{m[1]}}}$ (${_sym(m[2])}$)'),  # arc initial state
+        (r'^defect \w+?(\d+)\|\w+?\d+: (\w+)$',
+         lambda m: f'$d_{{{m[1]}}}$ (${"t" if m[2] == "time" else _sym(m[2])}$)'),  # linkage defect
+        (r'^(?:\w+?\d*\.)?(\w+)\[final\]$', lambda m: f'${_sym(m[1])}(t_f)$'),
+        (r'^(?:\w+?\d*\.)?(\w+)\[path\]$', lambda m: f'${_sym(m[1])}$ path'),
+        (r'^rate cont\.: (\w+) rate$', lambda m: f'$\\dot{{{_sym(m[1])}}}$ cont.'),
+        (r'^cont\.: (\w+)$', lambda m: f'${_sym(m[1])}$ cont.'),
+        (r'^defect: (\w+)$', lambda m: f'$\\Delta {_sym(m[1])}$'),
+        (r'^\w+?(\d+)\.(\w+)$', lambda m: f'$U_{{{m[1]}}}$'),                      # arc control
+        (r'^(\w+)$', lambda m: f'${_sym(m[1])}$'),
+    ]
+    for pattern, fmt in rules:
+        m = re.match(pattern, name)
+        if m:
+            return fmt(m)
+    return name
+
+
+def symbol_labels(blocks):
+    """Map the ``(name, size)`` blocks returned by ``total_jacobian`` to the
+    math-symbol labels used in the lecture plots: $t_f$, $x$, $\theta$,
+    $\Delta x$ for defects, $x(t_f)$ for boundary constraints, $\theta$ cont.
+    for continuity, and $h_i$, $t_i$, $U_i$, $s_i$, $d_i$ for linked arcs."""
+    return [(_symbol(name), size) for name, size in blocks]
+
+
 def describe_nlp(prob, title=None):
     """Print the design variables, constraints, and objective of the NLP seen
     by the optimizer attached to ``prob``."""
@@ -93,7 +134,8 @@ def total_jacobian(prob):
 
 
 def plot_jacobian(J, of_blocks, wrt_blocks, ax=None, title='', tol=1e-12,
-                  cmap='viridis', colorbar=True, obj_blocks=1):
+                  cmap='viridis', colorbar=True, obj_blocks=1,
+                  row_labels=None, col_labels=None):
     """Sparsity/magnitude plot of a total Jacobian with labeled blocks.
 
     Nonzero entries are colored by log-magnitude (with a colorbar); exact
@@ -101,6 +143,9 @@ def plot_jacobian(J, of_blocks, wrt_blocks, ax=None, title='', tol=1e-12,
     lines the boundaries between variable/constraint blocks, and a dark rule
     separates the objective row(s) (the first ``obj_blocks`` row blocks, as
     ordered by ``total_jacobian``) from the constraints.
+
+    ``row_labels`` / ``col_labels`` (lists with one string per row / column)
+    replace the block labels by a label on every entry, for small matrices.
     """
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 6))
@@ -151,6 +196,12 @@ def plot_jacobian(J, of_blocks, wrt_blocks, ax=None, title='', tol=1e-12,
         labels.append(f'{name}  ({size})' if size > 1 else name)
         pos += size
     ax.set_xticks(centers, labels, fontsize=8, rotation=45, ha='right')
+
+    # Optional label on every single row / column (small matrices only)
+    if row_labels is not None:
+        ax.set_yticks(np.arange(J.shape[0]), row_labels, fontsize=7)
+    if col_labels is not None:
+        ax.set_xticks(np.arange(J.shape[1]), col_labels, fontsize=7, rotation=90)
 
     ax.set_xlabel('design variables $z$', fontsize=9)
     ax.set_ylabel('objective $f$, constraints $c$', fontsize=9)
