@@ -1,0 +1,16 @@
+name: dymos-lectures
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - matplotlib
+  - jupyterlab
+  - ipywidgets
+  - ipympl            # interactive matplotlib widgets in notebooks
+  - pandas
+  - pip
+  - pip:
+      - openmdao[visualization]   # includes N2 diagram support (bokeh etc.)
+      - dymos

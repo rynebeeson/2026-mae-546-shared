@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oclectures"
+version = "0.1.0"
+description = "Shared helpers for MAE 546 optimal control lecture notebooks"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["oclectures"]
